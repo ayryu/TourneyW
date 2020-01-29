@@ -13,27 +13,36 @@ app = Flask(__name__)
 @app.route("/")
 def index():
     fighterNames = []
-    res = requests.get("https://api.kuroganehammer.com/api/characters")
-    if res.status_code != 200:
-        raise Exception("ERROR: The Get request was unsuccessful, please try again!")
 
-    data = res.json()
-    for element in data:
-        fighterNames.append(element['Name'])
+    i = 1
+    while i < 80:
+        id = str(i)
+        res = requests.get("https://api.kuroganehammer.com/api/characters/" + id)
+        if res.status_code != 200:
+            raise Exception("ERROR: The Get request was unsuccessful, please try again!")
+
+        data = res.json()
+        fighterNames.append(data['Name'])
+        i += 1
+    
+    fighterNames.sort()
 
     return render_template("index.html", fighterNames=fighterNames)
 
 @app.route("/selectedFighter", methods=["POST"])
 def selectFighter():
     movelist = {}
-    autoCancelledMoves = {} #key=move name value=autocancelvalue
+    autoCancelledMoves = {}
     selectedFighter = request.form.get("selectedFighter")
     response = requests.get("https://api.kuroganehammer.com/api/characters/name/" + selectedFighter + "/moves?expand=true")
     if response.status_code != 200:
         raise Exception("ERROR: The Get request was unsuccessful, please try again!")
     
-    frameData = response.json()
-    for listItem in frameData:
+    fighterImage = miscInfo(selectedFighter)
+    hopAirTime = hopTime(selectedFighter)
+    
+    autoCancelFrameData = response.json()
+    for listItem in autoCancelFrameData:
         movelist[listItem['Name']] = listItem['AutoCancel']
     
     for key in movelist:
@@ -41,5 +50,26 @@ def selectFighter():
             continue
         autoCancelledMoves[key] = movelist[key]
         
-    return render_template("character-page.html", autoCancelledMoves=autoCancelledMoves)
+    return render_template("character-page.html", autoCancelledMoves=autoCancelledMoves, fighterImage=fighterImage, hopAirTime=hopAirTime)
+
+def miscInfo(characterName):
+    miscInfoResponse = requests.get("https://api.kuroganehammer.com/api/characters/name/" + characterName)
+    miscData = miscInfoResponse.json()
+
+    characterImage = miscData['ThumbnailUrl'].strip('\"')
+    return characterImage
+
+def hopTime(characterName):
+    # movementData = {}
+    hopTimes = {}
+    hopResponse = requests.get("https://api.kuroganehammer.com/api/characters/name/" + characterName + "/movements")
+    hopData = hopResponse.json()
+
+    for element in hopData:
+        if(element['Name'] != "SH Air Time" and element['Name'] != "FH Air Time"):
+            continue
+        hopTimes[element['Name']] = element['Value']
+
+    return hopTimes
+
 
